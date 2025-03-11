@@ -1,0 +1,96 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and profile
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String
+  password      String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  // Relations
+  hostedGames   Game[]         @relation("GameHost")
+  participantIn Participant[]
+  votesGiven    Vote[]         @relation("VoteFrom")
+  votesReceived Vote[]         @relation("VoteTo")
+}
+
+// Game model to represent a Pyramid Game session
+model Game {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  secretCode  String        @unique
+  status      GameStatus    @default(CREATED)
+  votingTimeLimit Int       // Time limit in minutes
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  startedAt   DateTime?
+  endedAt     DateTime?
+  // Relations
+  hostId      String
+  host        User          @relation("GameHost", fields: [hostId], references: [id])
+  participants Participant[]
+  votes       Vote[]
+}
+
+// Participant model to track users in a game
+model Participant {
+  id        String      @id @default(cuid())
+  rank      Rank?       // Final rank assigned after voting
+  voteCount Int         @default(0)
+  hasVoted  Boolean     @default(false)
+  joinedAt  DateTime    @default(now())
+  // Relations
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  gameId    String
+  game      Game        @relation(fields: [gameId], references: [id])
+  // Votes received are tracked in the Vote model
+  
+  @@unique([userId, gameId]) // A user can only be a participant once per game
+}
+
+// Vote model to track votes cast
+model Vote {
+  id            String      @id @default(cuid())
+  createdAt     DateTime    @default(now())
+  // Relations
+  fromUserId    String
+  fromUser      User        @relation("VoteFrom", fields: [fromUserId], references: [id])
+  toUserId      String
+  toUser        User        @relation("VoteTo", fields: [toUserId], references: [id])
+  gameId        String
+  game          Game        @relation(fields: [gameId], references: [id])
+  
+  @@unique([fromUserId, toUserId, gameId]) // A user can only vote for another user once per game
+}
+
+// Enums
+enum GameStatus {
+  CREATED
+  WAITING_FOR_PLAYERS
+  VOTING
+  COMPLETED
+}
+
+enum Rank {
+  A
+  B
+  C
+  D
+  F
+}
